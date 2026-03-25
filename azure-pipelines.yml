@@ -1,0 +1,37 @@
+trigger:
+- main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+steps:
+
+- task: UseDotNet@2
+  inputs:
+    packageType: 'sdk'
+    version: '8.x'
+
+- script: |
+    cd app
+    dotnet restore > ../build.log 2>&1 || true
+    dotnet build >> ../build.log 2>&1 || true
+  displayName: "Build and capture logs"
+
+- script: |
+    echo "===== BUILD LOG ====="
+    cat build.log
+  displayName: "Print logs"
+
+- script: |
+    pip install -r llmops/requirements.txt
+    python llmops/analyze_no_rag.py
+  displayName: "LLM Analysis (No RAG)"
+  env:
+    OPENAI_API_KEY: $(OPENAI_API_KEY)
+
+- script: |
+    pip install -r llmops/requirements.txt
+    python llmops/analyze_rag.py
+  displayName: "LLM Analysis (RAG)"
+  env:
+    OPENAI_API_KEY: $(OPENAI_API_KEY)

@@ -1,11 +1,1 @@
-
-# 1. Install Ollama (one time)
-curl -fsSL https://ollama.com/install.sh | sh
-
-# 2. Pull a free model
-ollama pull llama3.2
-
-# 3. Run
-pip install ollama
-python llmops/analyze_no_rag.py build.log
-python llmops/analyze_rag.py build.log
+ollama

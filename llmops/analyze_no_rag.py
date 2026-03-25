@@ -1,7 +1,4 @@
-import os
-from openai import OpenAI
-
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+import ollama
 
 def extract_errors(logs):
     return "\n".join([line for line in logs.splitlines() if "error" in line.lower()])[:2000]
@@ -23,11 +20,11 @@ Logs:
 {errors}
 """
 
-response = client.chat.completions.create(
-    model="gpt-4o-mini",
+response = ollama.chat(
+    model="llama3.2",
     messages=[{"role": "user", "content": prompt}],
-    temperature=0.3
+    options={"temperature": 0.3}
 )
 
 print("===== NO RAG OUTPUT =====")
-print(response.choices[0].message.content)
+print(response["message"]["content"])

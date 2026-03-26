@@ -10,7 +10,7 @@ class Program
         int number = 10;
         string text = "20";
 
-        // Intentional mistake: adding int and string directly
+
         int result = number + text;
 
         Console.WriteLine("Result is: " + result);

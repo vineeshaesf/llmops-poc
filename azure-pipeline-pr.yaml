@@ -1,0 +1,35 @@
+trigger: none   # Don't run on normal commits
+
+# ── Trigger ONLY on Pull Requests ────────────────────────────────────────────
+pr:
+  branches:
+    include:
+      - main
+      - develop
+
+pool:
+  vmImage: "ubuntu-latest"
+
+steps:
+
+  # ── 1. Install Ollama + pull the free model ─────────────────────────────────
+  - script: |
+      curl -fsSL https://ollama.com/install.sh | sh
+      ollama serve &
+      sleep 5
+      ollama pull llama3.2
+    displayName: "Install Ollama + pull model"
+
+  # ── 2. Install Python dependencies ─────────────────────────────────────────
+  - script: |
+      pip install -r requirements.txt
+    displayName: "Install Python deps"
+
+  # ── 3. Generate PR description and post to GitHub ──────────────────────────
+  - script: |
+      python generate_pr_description.py
+    displayName: "Generate PR description (LLM)"
+    env:
+      GITHUB_TOKEN: $(GITHUB_TOKEN)         # Set this in Azure Pipeline Library
+      GITHUB_REPO:  $(GITHUB_REPO)          # Set this in Azure Pipeline Library  e.g. vineesha/my-repo
+      PR_NUMBER:    $(System.PullRequest.PullRequestNumber)   # Auto-injected by Azure DevOps

@@ -23,7 +23,7 @@ steps:
   # ── 2. Install Python dependencies ─────────────────────────────────────────
   - script: |
       pip install -r llmops/requirements.txt
-    displayName: "------Install Python deps-------"
+    displayName: "------Install Python deps---------"
 
   # ── 3. Generate PR description and post to GitHub ──────────────────────────
   - script: |

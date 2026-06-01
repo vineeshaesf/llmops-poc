@@ -1,11 +1,11 @@
 trigger: none   # Don't run on normal commits
 
 # ── Trigger ONLY on Pull Requests ────────────────────────────────────────────
-pr:
-  branches:
-    include:
-      - main
-      - develop
+# pr:
+#   branches:
+#     include:
+#       - main
+#       - develop
 
 pool:
   vmImage: "ubuntu-latest"

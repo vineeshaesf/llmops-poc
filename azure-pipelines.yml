@@ -8,8 +8,6 @@ variables:
   jiraBaseUrl: $(JIRA_BASE_URL)
   jiraEmail: $(JIRA_USER_EMAIL)
   jiraToken: $(JIRA_API_TOKEN)
-  jiraProjectKey: $(JIRA_PROJECT_KEY)
-  pipelineEnv: production
 
 steps:
   - task: UseDotNet@2
@@ -48,27 +46,28 @@ steps:
     displayName: "LLM Analysis (RAG)"
 
   - script: |
-      COMMIT_MSG="$(Build.SourceVersionMessage)"
-      PIPELINE_URL="$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)"
+      # BUILD_MSG is injected via env: below — avoids ADO inline expansion issues
+      echo "Raw commit message: '$BUILD_MSG'"
+      echo "Build ID: '$BUILD_ID'"
 
-      echo "Full commit message: $COMMIT_MSG"
+      PIPELINE_URL="${COLLECTION_URI}${TEAM_PROJECT}/_build/results?buildId=${BUILD_ID}"
 
-      # Fixed: use -E (extended regex) instead of -P (perl regex)
-      ISSUE_KEY=$(echo "$COMMIT_MSG" | grep -oE '[A-Z]+-[0-9]+' | head -1)
+      # Extract Jira key e.g. EP-1 from commit message
+      ISSUE_KEY=$(echo "$BUILD_MSG" | grep -oE '[A-Z]+-[0-9]+' | head -1)
 
       echo "Extracted issue key: '$ISSUE_KEY'"
 
       if [ -z "$ISSUE_KEY" ]; then
-        echo "No Jira issue key found in commit message — skipping Jira notification"
-        echo "Tip: start your commit message with EP-XX e.g. EP-1 your message here"
+        echo "No Jira issue key found — skipping Jira notification"
+        echo "Tip: start commit message with EP-XX e.g. EP-1 your message"
         exit 0
       fi
 
       echo "Notifying Jira for issue: $ISSUE_KEY"
 
       HTTP_STATUS=$(curl -s -o /tmp/jira_response.txt -w "%{http_code}" -X POST \
-        "$(jiraBaseUrl)/rest/api/3/issue/$ISSUE_KEY/comment" \
-        -u "$(jiraEmail):$(jiraToken)" \
+        "${JIRA_URL}/rest/api/3/issue/${ISSUE_KEY}/comment" \
+        -u "${JIRA_EMAIL}:${JIRA_TOKEN}" \
         -H "Content-Type: application/json" \
         -d "{
           \"body\": {
@@ -78,35 +77,38 @@ steps:
               \"type\": \"paragraph\",
               \"content\": [{
                 \"type\": \"text\",
-                \"text\": \"Deployed to production | Build: $(Build.BuildId) | Commit: $(Build.SourceVersion) | Pipeline: $PIPELINE_URL\"
+                \"text\": \"Deployed to production | Build: ${BUILD_ID} | Commit: ${COMMIT_SHA} | Pipeline: ${PIPELINE_URL}\"
               }]
             }]
           }
         }")
 
-      echo "Jira API response code: $HTTP_STATUS"
-      echo "Jira API response body:"
+      echo "Jira API status: $HTTP_STATUS"
       cat /tmp/jira_response.txt
 
       if [ "$HTTP_STATUS" -eq 201 ]; then
-        echo "Jira deployment comment posted successfully for $ISSUE_KEY"
+        echo "SUCCESS — comment posted to $ISSUE_KEY"
       else
-        echo "Warning: Jira API returned $HTTP_STATUS — check credentials and issue key"
+        echo "FAILED — Jira API returned $HTTP_STATUS"
       fi
     displayName: "Notify Jira — deployment succeeded"
     condition: succeeded()
     env:
-      jiraBaseUrl: $(JIRA_BASE_URL)
-      jiraEmail: $(JIRA_USER_EMAIL)
-      jiraToken: $(JIRA_API_TOKEN)
+      BUILD_MSG: $(Build.SourceVersionMessage)
+      BUILD_ID: $(Build.BuildId)
+      COMMIT_SHA: $(Build.SourceVersion)
+      COLLECTION_URI: $(System.TeamFoundationCollectionUri)
+      TEAM_PROJECT: $(System.TeamProject)
+      JIRA_URL: $(JIRA_BASE_URL)
+      JIRA_EMAIL: $(JIRA_USER_EMAIL)
+      JIRA_TOKEN: $(JIRA_API_TOKEN)
 
   - script: |
-      COMMIT_MSG="$(Build.SourceVersionMessage)"
-      PIPELINE_URL="$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)"
+      echo "Raw commit message: '$BUILD_MSG'"
 
-      echo "Full commit message: $COMMIT_MSG"
+      PIPELINE_URL="${COLLECTION_URI}${TEAM_PROJECT}/_build/results?buildId=${BUILD_ID}"
 
-      ISSUE_KEY=$(echo "$COMMIT_MSG" | grep -oE '[A-Z]+-[0-9]+' | head -1)
+      ISSUE_KEY=$(echo "$BUILD_MSG" | grep -oE '[A-Z]+-[0-9]+' | head -1)
 
       echo "Extracted issue key: '$ISSUE_KEY'"
 
@@ -115,11 +117,9 @@ steps:
         exit 0
       fi
 
-      echo "Notifying Jira of failed deployment for: $ISSUE_KEY"
-
-      HTTP_STATUS=$(curl -s -o /tmp/jira_fail_response.txt -w "%{http_code}" -X POST \
-        "$(jiraBaseUrl)/rest/api/3/issue/$ISSUE_KEY/comment" \
-        -u "$(jiraEmail):$(jiraToken)" \
+      HTTP_STATUS=$(curl -s -o /tmp/jira_fail.txt -w "%{http_code}" -X POST \
+        "${JIRA_URL}/rest/api/3/issue/${ISSUE_KEY}/comment" \
+        -u "${JIRA_EMAIL}:${JIRA_TOKEN}" \
         -H "Content-Type: application/json" \
         -d "{
           \"body\": {
@@ -129,17 +129,22 @@ steps:
               \"type\": \"paragraph\",
               \"content\": [{
                 \"type\": \"text\",
-                \"text\": \"Deployment FAILED | Build: $(Build.BuildId) | Commit: $(Build.SourceVersion) | Pipeline: $PIPELINE_URL\"
+                \"text\": \"Deployment FAILED | Build: ${BUILD_ID} | Commit: ${COMMIT_SHA} | Pipeline: ${PIPELINE_URL}\"
               }]
             }]
           }
         }")
 
-      echo "Jira API response code: $HTTP_STATUS"
-      cat /tmp/jira_fail_response.txt
+      echo "Jira API status: $HTTP_STATUS"
+      cat /tmp/jira_fail.txt
     displayName: "Notify Jira — deployment failed"
     condition: failed()
     env:
-      jiraBaseUrl: $(JIRA_BASE_URL)
-      jiraEmail: $(JIRA_USER_EMAIL)
-      jiraToken: $(JIRA_API_TOKEN)
+      BUILD_MSG: $(Build.SourceVersionMessage)
+      BUILD_ID: $(Build.BuildId)
+      COMMIT_SHA: $(Build.SourceVersion)
+      COLLECTION_URI: $(System.TeamFoundationCollectionUri)
+      TEAM_PROJECT: $(System.TeamProject)
+      JIRA_URL: $(JIRA_BASE_URL)
+      JIRA_EMAIL: $(JIRA_USER_EMAIL)
+      JIRA_TOKEN: $(JIRA_API_TOKEN)

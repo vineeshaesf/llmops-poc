@@ -20,10 +20,10 @@ variables:
   pipelineEnv: production
 
 steps:
-  - task: UseDotNet@2
-    inputs:
-      packageType: "sdk"
-      version: "8.x"
+  # - task: UseDotNet@2
+  #   inputs:
+  #     packageType: "sdk"
+  #     version: "8.x"
 
   # - script: |
   #     cd app

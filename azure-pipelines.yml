@@ -4,14 +4,6 @@ trigger:
 pool:
   vmImage: "ubuntu-latest"
 
-# ---------------------------------------------------------
-# These variables need to be added in ADO:
-# Pipeline → Edit → Variables → Add each one as secret
-#   JIRA_BASE_URL   → https://your-instance.atlassian.net
-#   JIRA_USER_EMAIL → your Atlassian login email
-#   JIRA_API_TOKEN  → from id.atlassian.com/manage-profile/security/api-tokens
-#   JIRA_PROJECT_KEY → ENG-POC
-# ---------------------------------------------------------
 variables:
   jiraBaseUrl: $(JIRA_BASE_URL)
   jiraEmail: $(JIRA_USER_EMAIL)
@@ -55,30 +47,26 @@ steps:
       python llmops/analyze_rag.py
     displayName: "LLM Analysis (RAG)"
 
-  # ---------------------------------------------------------
-  # DORA — Deployment Frequency & Change Lead Time
-  # Fires when ALL above steps succeed.
-  # Jira reads this as a successful production deployment.
-  # The pipeline run URL is attached so Jira can compute
-  # lead time from the linked commit timestamp.
-  # ---------------------------------------------------------
   - script: |
       COMMIT_MSG="$(Build.SourceVersionMessage)"
       PIPELINE_URL="$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)"
 
-      # Extract Jira issue key from commit message (e.g. ENG-42)
-      ISSUE_KEY=$(echo "$COMMIT_MSG" | grep -oP '[A-Z]+-[0-9]+' | head -1)
+      echo "Full commit message: $COMMIT_MSG"
+
+      # Fixed: use -E (extended regex) instead of -P (perl regex)
+      ISSUE_KEY=$(echo "$COMMIT_MSG" | grep -oE '[A-Z]+-[0-9]+' | head -1)
+
+      echo "Extracted issue key: '$ISSUE_KEY'"
 
       if [ -z "$ISSUE_KEY" ]; then
         echo "No Jira issue key found in commit message — skipping Jira notification"
-        echo "Tip: start your commit message with ENG-XX to link deployments"
+        echo "Tip: start your commit message with EP-XX e.g. EP-1 your message here"
         exit 0
       fi
 
       echo "Notifying Jira for issue: $ISSUE_KEY"
 
-      # Log a deployment event against the Jira issue
-      curl -s -X POST \
+      HTTP_STATUS=$(curl -s -o /tmp/jira_response.txt -w "%{http_code}" -X POST \
         "$(jiraBaseUrl)/rest/api/3/issue/$ISSUE_KEY/comment" \
         -u "$(jiraEmail):$(jiraToken)" \
         -H "Content-Type: application/json" \
@@ -90,13 +78,21 @@ steps:
               \"type\": \"paragraph\",
               \"content\": [{
                 \"type\": \"text\",
-                \"text\": \"✅ Deployed to production | Build: $(Build.BuildId) | Commit: $(Build.SourceVersion) | Pipeline: $PIPELINE_URL\"
+                \"text\": \"Deployed to production | Build: $(Build.BuildId) | Commit: $(Build.SourceVersion) | Pipeline: $PIPELINE_URL\"
               }]
             }]
           }
-        }"
+        }")
 
-      echo "Jira deployment comment posted for $ISSUE_KEY"
+      echo "Jira API response code: $HTTP_STATUS"
+      echo "Jira API response body:"
+      cat /tmp/jira_response.txt
+
+      if [ "$HTTP_STATUS" -eq 201 ]; then
+        echo "Jira deployment comment posted successfully for $ISSUE_KEY"
+      else
+        echo "Warning: Jira API returned $HTTP_STATUS — check credentials and issue key"
+      fi
     displayName: "Notify Jira — deployment succeeded"
     condition: succeeded()
     env:
@@ -104,17 +100,15 @@ steps:
       jiraEmail: $(JIRA_USER_EMAIL)
       jiraToken: $(JIRA_API_TOKEN)
 
-  # ---------------------------------------------------------
-  # DORA — Change Failure Rate
-  # Fires only when any step above fails.
-  # Posts a failure comment to the Jira issue so you can
-  # track how many deployments fail vs succeed per sprint.
-  # ---------------------------------------------------------
   - script: |
       COMMIT_MSG="$(Build.SourceVersionMessage)"
       PIPELINE_URL="$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)"
 
-      ISSUE_KEY=$(echo "$COMMIT_MSG" | grep -oP '[A-Z]+-[0-9]+' | head -1)
+      echo "Full commit message: $COMMIT_MSG"
+
+      ISSUE_KEY=$(echo "$COMMIT_MSG" | grep -oE '[A-Z]+-[0-9]+' | head -1)
+
+      echo "Extracted issue key: '$ISSUE_KEY'"
 
       if [ -z "$ISSUE_KEY" ]; then
         echo "No Jira issue key found — skipping failure notification"
@@ -123,7 +117,7 @@ steps:
 
       echo "Notifying Jira of failed deployment for: $ISSUE_KEY"
 
-      curl -s -X POST \
+      HTTP_STATUS=$(curl -s -o /tmp/jira_fail_response.txt -w "%{http_code}" -X POST \
         "$(jiraBaseUrl)/rest/api/3/issue/$ISSUE_KEY/comment" \
         -u "$(jiraEmail):$(jiraToken)" \
         -H "Content-Type: application/json" \
@@ -135,14 +129,15 @@ steps:
               \"type\": \"paragraph\",
               \"content\": [{
                 \"type\": \"text\",
-                \"text\": \"❌ Deployment FAILED | Build: $(Build.BuildId) | Commit: $(Build.SourceVersion) | Pipeline: $PIPELINE_URL\"
+                \"text\": \"Deployment FAILED | Build: $(Build.BuildId) | Commit: $(Build.SourceVersion) | Pipeline: $PIPELINE_URL\"
               }]
             }]
           }
-        }"
+        }")
 
-      echo "Jira failure comment posted for $ISSUE_KEY"
-    displayName: "Notify Jira — deployment failed (Change Failure Rate)"
+      echo "Jira API response code: $HTTP_STATUS"
+      cat /tmp/jira_fail_response.txt
+    displayName: "Notify Jira — deployment failed"
     condition: failed()
     env:
       jiraBaseUrl: $(JIRA_BASE_URL)

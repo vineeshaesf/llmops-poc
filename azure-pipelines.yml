@@ -11,7 +11,7 @@ pool:
 #   JIRA_USER_EMAIL → your Atlassian login email
 #   JIRA_API_TOKEN  → from id.atlassian.com/manage-profile/security/api-tokens
 #   JIRA_PROJECT_KEY → ENG-POC
-# -----------------------------------------------------------
+# -------------------------------------------------------------
 variables:
   jiraBaseUrl: $(JIRA_BASE_URL)
   jiraEmail: $(JIRA_USER_EMAIL)

@@ -4,7 +4,7 @@ trigger:
 pool:
   vmImage: "ubuntu-latest"
 
-# ---------------------------------------------------------
+# ----------------------------------------------------------
 # These variables need to be added in ADO:
 # Pipeline → Edit → Variables → Add each one as secret
 #   JIRA_BASE_URL   → https://your-instance.atlassian.net
@@ -25,35 +25,35 @@ steps:
       packageType: "sdk"
       version: "8.x"
 
-  - script: |
-      cd app
-      dotnet restore > ../build.log 2>&1 || true
-      dotnet build   >> ../build.log 2>&1 || true
-    displayName: "Build and capture logs"
+  # - script: |
+  #     cd app
+  #     dotnet restore > ../build.log 2>&1 || true
+  #     dotnet build   >> ../build.log 2>&1 || true
+  #   displayName: "Build and capture logs"
 
-  - script: |
-      echo "===== BUILD LOG ====="
-      cat build.log
-    displayName: "Print logs"
+  # - script: |
+  #     echo "===== BUILD LOG ====="
+  #     cat build.log
+  #   displayName: "Print logs"
 
-  - script: |
-      curl -fsSL https://ollama.com/install.sh | sh
-      ollama serve &
-      sleep 5
-      ollama pull llama3.2
-    displayName: "Install Ollama + pull model"
+  # - script: |
+  #     curl -fsSL https://ollama.com/install.sh | sh
+  #     ollama serve &
+  #     sleep 5
+  #     ollama pull llama3.2
+  #   displayName: "Install Ollama + pull model"
 
-  - script: |
-      pip install -r llmops/requirements.txt
-    displayName: "Install Python deps"
+  # - script: |
+  #     pip install -r llmops/requirements.txt
+  #   displayName: "Install Python deps"
 
-  - script: |
-      python llmops/analyze_no_rag.py
-    displayName: "LLM Analysis (No RAG)"
+  # - script: |
+  #     python llmops/analyze_no_rag.py
+  #   displayName: "LLM Analysis (No RAG)"
 
-  - script: |
-      python llmops/analyze_rag.py
-    displayName: "LLM Analysis (RAG)"
+  # - script: |
+  #     python llmops/analyze_rag.py
+  #   displayName: "LLM Analysis (RAG)"
 
   # ---------------------------------------------------------
   # DORA — Deployment Frequency & Change Lead Time
